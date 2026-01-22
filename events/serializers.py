@@ -31,3 +31,28 @@ class EventSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["preview_image", "created_at", "updated_at"]
+
+class EventImagesUploadSerializer(serializers.Serializer):
+    images = serializers.ImageField(required=False)
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        files = request.FILES.getlist("images")
+        if not files:
+            raise serializers.ValidationError(
+                {"images": "Upload at least one file using form-data key 'images'."}
+            )
+        attrs["images"] = files
+        return attrs
+
+class EventImagesResponseSerializer(serializers.Serializer):
+    preview_image_url = serializers.SerializerMethodField()
+    images = EventImageSerializer(many=True)
+
+    def get_preview_image_url(self, obj):
+        request = self.context.get("request")
+        event = obj["event"]
+        if not event.preview_image:
+            return None
+        url = event.preview_image.url
+        return request.build_absolute_uri(url) if request else url
