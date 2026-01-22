@@ -1,6 +1,8 @@
 # weather/services.py
 import requests
-import math
+
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 def degrees_to_direction(degrees):
     """Преобразует градусы направления ветра в текстовые обозначения."""
@@ -20,6 +22,9 @@ def fetch_weather_for_venue(venue):
     lat = venue.location.y  # широта
     lon = venue.location.x  # долгота
 
+    lat = venue.location.y
+    lon = venue.location.x
+
     url = (
         f"https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
@@ -27,8 +32,14 @@ def fetch_weather_for_venue(venue):
         f"&timezone=auto"
     )
 
+    # Настраиваем сессию с повторами
+    session = requests.Session()
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+
     try:
-        response = requests.get(url, timeout=10)
+        response = session.get(url, timeout=20)
         response.raise_for_status()
         data = response.json()
         current = data.get("current", {})
