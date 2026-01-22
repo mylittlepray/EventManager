@@ -7,8 +7,9 @@ from rest_framework import status
 
 from core.permissions import IsSuperUserOrReadOnly
 from .models import Event, EventImage, EventStatus
-from .serializers import EventSerializer, EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer
+from .serializers import EventSerializer, EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer, FileUploadSerializer
 from .services import make_preview
+from .xlsx_services import export_events_to_xlsx, import_events_from_xlsx
 from .filters import EventFilter
 
 class EventViewSet(ModelViewSet):
@@ -47,12 +48,7 @@ class EventViewSet(ModelViewSet):
             return EventImagesUploadSerializer
         return super().get_serializer_class()
 
-    @action(
-        detail=True,
-        methods=[],
-        url_path="images",
-        parser_classes=[MultiPartParser, FormParser],
-    )
+    @action(detail=True, methods=[], url_path="images", parser_classes=[MultiPartParser, FormParser])
     def images(self, request, pk=None):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
@@ -91,3 +87,32 @@ class EventViewSet(ModelViewSet):
             EventImageSerializer(created, many=True, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+    
+    @action(detail=False, methods=["get"], url_path="export-xlsx")
+    def export_xlsx(self, request):
+        """
+        Экспорт отфильтрованных событий в XLSX.
+        """
+        # Используем filter_queryset, чтобы применились те же фильтры, что и в списке
+        queryset = self.filter_queryset(self.get_queryset())
+        return export_events_to_xlsx(queryset)
+
+    @action(detail=False, methods=["post"], url_path="import-xlsx", parser_classes=[MultiPartParser, FormParser], serializer_class=FileUploadSerializer)
+    def import_xlsx(self, request):
+        """
+        Импорт событий из XLSX.
+        """
+        file_obj = request.FILES.get("file")
+        if not file_obj:
+            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Вызываем сервис импорта
+        result = import_events_from_xlsx(file_obj, request.user)
+        
+        if result["errors"]:
+            return Response({
+                "message": f"Created {result['created']} events.",
+                "errors": result["errors"]
+            }, status=status.HTTP_400_BAD_REQUEST) # Или 200, если частичный успех ок
+            
+        return Response({"message": f"Successfully imported {result['created']} events."}, status=status.HTTP_201_CREATED)

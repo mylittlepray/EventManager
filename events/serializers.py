@@ -56,3 +56,6 @@ class EventImagesResponseSerializer(serializers.Serializer):
             return None
         url = event.preview_image.url
         return request.build_absolute_uri(url) if request else url
+    
+class FileUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
