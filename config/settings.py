@@ -97,6 +97,9 @@ DATABASES = {
     }
 }
 
+GDAL_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\gdal312.dll"
+GEOS_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\geos_c.dll"
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
