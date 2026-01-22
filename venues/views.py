@@ -1,3 +1,10 @@
-from django.shortcuts import render
+# venues/views.py
+from rest_framework.viewsets import ModelViewSet
+from core.permissions import IsSuperUser
+from .models import Venue
+from .serializers import VenueSerializer
 
-# Create your views here.
+class VenueViewSet(ModelViewSet):
+    queryset = Venue.objects.all()
+    serializer_class = VenueSerializer
+    permission_classes = [IsSuperUser]

@@ -1,5 +1,8 @@
-from django.contrib import admin
-from django.urls import path, include
+# venues/urls.py
+from rest_framework.routers import DefaultRouter
+from .views import VenueViewSet
 
-urlpatterns = [
-]
+router = DefaultRouter()
+router.register(r"", VenueViewSet, basename="venues")
+
+urlpatterns = router.urls
