@@ -8,7 +8,7 @@ from rest_framework import status
 from core.permissions import IsSuperUserOrReadOnly
 from .models import Event, EventImage, EventStatus
 from .serializers import EventSerializer, EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer
-from .utils import make_preview
+from .services import make_preview
 from .filters import EventFilter
 
 class EventViewSet(ModelViewSet):
