@@ -9,10 +9,24 @@ from core.permissions import IsSuperUserOrReadOnly
 from .models import Event, EventImage, EventStatus
 from .serializers import EventSerializer, EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer
 from .utils import make_preview
+from .filters import EventFilter
 
 class EventViewSet(ModelViewSet):
     serializer_class = EventSerializer
     permission_classes = [IsSuperUserOrReadOnly]
+    filterset_class = EventFilter
+
+    search_fields = [
+        "title",
+        "venue__name",
+    ]
+
+    ordering_fields = [
+        "title",
+        "start_at",
+        "end_at",
+    ]
+    ordering = ["start_at"] 
 
     def get_queryset(self):
         qs = Event.objects.select_related("venue", "author").prefetch_related("images")
