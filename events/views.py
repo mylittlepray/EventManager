@@ -7,10 +7,14 @@ from rest_framework import status
 
 from core.permissions import IsSuperUserOrReadOnly
 from .models import Event, EventImage, EventStatus
-from .serializers import EventSerializer, EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer, FileUploadSerializer
+from .serializers import EventImageSerializer, EventImagesUploadSerializer, EventImagesResponseSerializer, FileUploadSerializer, EventListSerializer, EventDetailSerializer, EventWriteSerializer
 from .services import make_preview
 from .xlsx_services import export_events_to_xlsx, import_events_from_xlsx
 from .filters import EventFilter
+
+from weather.serializers import WeatherSnapshotSerializer
+from weather.models import WeatherSnapshot
+from weather.services import get_forecast_for_time
 
 from drf_spectacular.utils import (
     extend_schema_view,
@@ -104,7 +108,7 @@ from drf_spectacular.types import OpenApiTypes
             ),
         ],
         responses={
-            200: OpenApiResponse(response=EventSerializer(many=True), description="Список мероприятий."),
+            200: OpenApiResponse(response=EventListSerializer(many=True), description="Список мероприятий."),
             403: OpenApiResponse(description="Недостаточно прав (например, попытка создать/изменить без superuser)."),
         },
     ),
@@ -113,7 +117,7 @@ from drf_spectacular.types import OpenApiTypes
         summary="Детали мероприятия",
         description="Обычный пользователь может получить только PUBLISHED. Суперпользователь — любые статусы.",
         responses={
-            200: OpenApiResponse(response=EventSerializer, description="Детали мероприятия."),
+            200: OpenApiResponse(response=EventDetailSerializer, description="Детали мероприятия."),
             404: OpenApiResponse(description="Мероприятие не найдено или скрыто (не PUBLISHED для обычного пользователя)."),
         },
     ),
@@ -122,7 +126,7 @@ from drf_spectacular.types import OpenApiTypes
         summary="Создать мероприятие",
         description="Доступно только суперпользователю. Автор проставляется автоматически.",
         responses={
-            201: OpenApiResponse(response=EventSerializer, description="Мероприятие создано."),
+            201: OpenApiResponse(response=EventDetailSerializer, description="Мероприятие создано."),
             403: OpenApiResponse(description="Только для superuser."),
         },
     ),
@@ -130,13 +134,13 @@ from drf_spectacular.types import OpenApiTypes
         tags=["Мероприятия"],
         summary="Обновить мероприятие",
         description="Доступно только суперпользователю.",
-        responses={200: OpenApiResponse(response=EventSerializer), 403: OpenApiResponse(description="Только для superuser.")},
+        responses={200: OpenApiResponse(response=EventDetailSerializer), 403: OpenApiResponse(description="Только для superuser.")},
     ),
     partial_update=extend_schema(
         tags=["Мероприятия"],
         summary="Частично обновить мероприятие",
         description="Доступно только суперпользователю.",
-        responses={200: OpenApiResponse(response=EventSerializer), 403: OpenApiResponse(description="Только для superuser.")},
+        responses={200: OpenApiResponse(response=EventDetailSerializer), 403: OpenApiResponse(description="Только для superuser.")},
     ),
     destroy=extend_schema(
         tags=["Мероприятия"],
@@ -191,7 +195,6 @@ from drf_spectacular.types import OpenApiTypes
     ),
 )
 class EventViewSet(ModelViewSet):
-    serializer_class = EventSerializer
     permission_classes = [IsSuperUserOrReadOnly]
     filterset_class = EventFilter
 
@@ -208,11 +211,33 @@ class EventViewSet(ModelViewSet):
     ordering = ["start_at"] 
 
     def get_queryset(self):
-        qs = Event.objects.select_related("venue", "author").prefetch_related("images")
+        qs = Event.objects.select_related("venue", "author")
+        
+        if self.action == 'retrieve':
+            qs = qs.prefetch_related("images", "weather")
+
         user = self.request.user
         if user.is_authenticated and user.is_superuser:
             return qs
         return qs.filter(status=EventStatus.PUBLISHED)
+
+    def get_serializer_class(self):
+        """
+        Выбор сериализатора в зависимости от действия.
+        """
+        if self.action == 'list':
+            return EventListSerializer
+        
+        if self.action == 'retrieve':
+            return EventDetailSerializer
+            
+        if self.action in ['create', 'update', 'partial_update']:
+            return EventWriteSerializer
+            
+        if self.action == "images_upload":
+            return EventImagesUploadSerializer
+            
+        return EventDetailSerializer
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -220,11 +245,6 @@ class EventViewSet(ModelViewSet):
     def perform_destroy(self, instance):
         instance.status = EventStatus.DELETED
         instance.save(update_fields=["status"])
-
-    def get_serializer_class(self):
-        if self.action == "images_upload":
-            return EventImagesUploadSerializer
-        return super().get_serializer_class()
 
     @action(detail=True, methods=[], url_path="images", parser_classes=[MultiPartParser, FormParser])
     def images(self, request, pk=None):
@@ -323,3 +343,55 @@ class EventViewSet(ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST) # Или 200, если частичный успех ок
             
         return Response({"message": f"Successfully imported {result['created']} events."}, status=status.HTTP_201_CREATED)
+    
+    @extend_schema(
+        summary="Получить погоду для события",
+        description="Возвращает сохраненный прогноз погоды. Если прогноза нет в БД, пытается получить его онлайн и сохранить.",
+        responses={200: WeatherSnapshotSerializer, 404: OpenApiResponse(description="Прогноз недоступен")}
+    )
+    @action(detail=True, methods=['get'], url_path='weather')
+    def get_weather(self, request, pk=None):
+        event = self.get_object()
+
+        if event.weather:
+            serializer = WeatherSnapshotSerializer(event.weather)
+            return Response(serializer.data)
+
+        if not event.venue or not event.venue.location:
+            return Response(
+                {"detail": "У события не указана площадка или координаты."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            lat = event.venue.location.y
+            lon = event.venue.location.x
+        except AttributeError:
+            # На случай, если вдруг там не Point, а что-то странное
+            return Response(
+                {"detail": "Некорректный тип данных координат."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        weather_data = get_forecast_for_time(
+            float(lat), 
+            float(lon), 
+            event.start_at
+        )
+
+        if not weather_data:
+            return Response(
+                {"detail": "Прогноз погоды на эту дату пока недоступен (или дата слишком далеко)."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        snapshot = WeatherSnapshot.objects.create(
+            venue=event.venue,
+            **weather_data
+        )
+        
+        event.weather = snapshot
+        event.save(update_fields=['weather'])
+
+        serializer = WeatherSnapshotSerializer(snapshot)
+        return Response(serializer.data)

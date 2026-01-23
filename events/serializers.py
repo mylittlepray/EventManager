@@ -2,35 +2,79 @@
 from rest_framework import serializers
 from .models import Event, EventImage
 
+from venues.serializers import VenueSerializer
+from weather.serializers import WeatherSnapshotSerializer
+
 class EventImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventImage
         fields = ["id", "image", "created_at"]
 
 
-class EventSerializer(serializers.ModelSerializer):
-    author = serializers.StringRelatedField(read_only=True)
-    images = EventImageSerializer(many=True, read_only=True)
+class EventListSerializer(serializers.ModelSerializer):
+    venue = VenueSerializer(read_only=True)
 
     class Meta:
         model = Event
         fields = [
             "id",
-            "title",
-            "description",
-            "publish_at",
-            "start_at",
-            "end_at",
-            "author",
-            "venue",
-            "rating",
-            "status",
-            "preview_image",
-            "images",
-            "created_at",
-            "updated_at",
+            "title", 
+            "description", 
+            "publish_at", 
+            "start_at", 
+            "end_at", 
+            "venue", 
+            "rating", 
+            "preview_image"
         ]
-        read_only_fields = ["preview_image", "created_at", "updated_at"]
+
+class EventDetailSerializer(serializers.ModelSerializer):
+    venue = VenueSerializer(read_only=True)
+    weather = WeatherSnapshotSerializer(read_only=True) # Погода
+    images = EventImageSerializer(many=True, read_only=True) # Картинки
+
+    class Meta:
+        model = Event
+        fields = [
+            "id",
+            "title", 
+            "description", 
+            "publish_at", 
+            "start_at", 
+            "end_at", 
+            "venue", 
+            "rating", 
+            "preview_image",
+            "status",      # Добавим статус (админу полезно)
+            "author",      # Автора
+            "weather",     # <-- Добавлено
+            "images",      # <-- Добавлено
+        ]
+
+    def to_representation(self, instance):
+        """
+        Динамическое скрытие полей для обычных пользователей.
+        Если юзер НЕ суперюзер, убираем системные поля, но оставляем weather/images.
+        """
+        rep = super().to_representation(instance)
+        request = self.context.get('request')
+
+        # Если пользователь НЕ суперюзер (или аноним)
+        if not request or not request.user.is_superuser:
+            # Можно удалить лишние поля, которые видит только админ
+            # Например, если 'status' или 'author' не должны видеть обычные юзеры:
+            if 'status' in rep: rep.pop('status')
+            if 'author' in rep: rep.pop('author')
+            
+            # Weather и Images остаются, как ты и просил для "retrieve"
+            
+        return rep
+
+class EventWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = "__all__"
+        read_only_fields = ["author", "weather", "preview_image", "rating"] 
 
 class EventImagesUploadSerializer(serializers.Serializer):
     images = serializers.ImageField(required=False)
