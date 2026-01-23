@@ -19,8 +19,8 @@ def fetch_weather_for_venue(venue):
     Получает текущую погоду для venue через Open-Meteo API.
     Возвращает словарь с данными погоды или None при ошибке.
     """
-    lat = venue.location.y  # широта
-    lon = venue.location.x  # долгота
+    lat = venue.location.y
+    lon = venue.location.x
 
     lat = venue.location.y
     lon = venue.location.x
@@ -32,7 +32,6 @@ def fetch_weather_for_venue(venue):
         f"&timezone=auto"
     )
 
-    # Настраиваем сессию с повторами
     session = requests.Session()
     retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
     adapter = HTTPAdapter(max_retries=retry)

@@ -12,6 +12,184 @@ from .services import make_preview
 from .xlsx_services import export_events_to_xlsx, import_events_from_xlsx
 from .filters import EventFilter
 
+from drf_spectacular.utils import (
+    extend_schema_view,
+    extend_schema,
+    OpenApiParameter,
+    OpenApiExample,
+    OpenApiResponse,
+)
+from drf_spectacular.types import OpenApiTypes
+
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Мероприятия"],
+        summary="Список мероприятий",
+        description=(
+            "Обычный пользователь видит только мероприятия со статусом PUBLISHED. "
+            "Суперпользователь видит все статусы.\n\n"
+            "Поддерживаются пагинация, поиск, сортировка и фильтрация."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Номер страницы пагинации.",
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Поиск по названию мероприятия (title) и названию места (venue__name).",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Сортировка: title, start_at, end_at. Пример: ordering=-start_at",
+            ),
+            OpenApiParameter(
+                name="rating_min",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Минимальный рейтинг (0..25).",
+            ),
+            OpenApiParameter(
+                name="rating_max",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Максимальный рейтинг (0..25).",
+            ),
+            OpenApiParameter(
+                name="start_at_after",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Начало мероприятия от (>=). Пример: 2026-01-01T00:00:00Z",
+            ),
+            OpenApiParameter(
+                name="start_at_before",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Начало мероприятия до (<=).",
+            ),
+            OpenApiParameter(
+                name="end_at_after",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Окончание мероприятия от (>=).",
+            ),
+            OpenApiParameter(
+                name="end_at_before",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Окончание мероприятия до (<=).",
+            ),
+            OpenApiParameter(
+                name="venue",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                many=True,
+                description="Фильтр по месту проведения (можно несколько): ?venue=1&venue=2",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(response=EventSerializer(many=True), description="Список мероприятий."),
+            403: OpenApiResponse(description="Недостаточно прав (например, попытка создать/изменить без superuser)."),
+        },
+    ),
+    retrieve=extend_schema(
+        tags=["Мероприятия"],
+        summary="Детали мероприятия",
+        description="Обычный пользователь может получить только PUBLISHED. Суперпользователь — любые статусы.",
+        responses={
+            200: OpenApiResponse(response=EventSerializer, description="Детали мероприятия."),
+            404: OpenApiResponse(description="Мероприятие не найдено или скрыто (не PUBLISHED для обычного пользователя)."),
+        },
+    ),
+    create=extend_schema(
+        tags=["Мероприятия"],
+        summary="Создать мероприятие",
+        description="Доступно только суперпользователю. Автор проставляется автоматически.",
+        responses={
+            201: OpenApiResponse(response=EventSerializer, description="Мероприятие создано."),
+            403: OpenApiResponse(description="Только для superuser."),
+        },
+    ),
+    update=extend_schema(
+        tags=["Мероприятия"],
+        summary="Обновить мероприятие",
+        description="Доступно только суперпользователю.",
+        responses={200: OpenApiResponse(response=EventSerializer), 403: OpenApiResponse(description="Только для superuser.")},
+    ),
+    partial_update=extend_schema(
+        tags=["Мероприятия"],
+        summary="Частично обновить мероприятие",
+        description="Доступно только суперпользователю.",
+        responses={200: OpenApiResponse(response=EventSerializer), 403: OpenApiResponse(description="Только для superuser.")},
+    ),
+    destroy=extend_schema(
+        tags=["Мероприятия"],
+        summary="Удалить мероприятие (soft delete)",
+        description="Доступно только суперпользователю. Физически запись не удаляется, статус становится DELETED.",
+        responses={204: OpenApiResponse(description="Помечено как DELETED."), 403: OpenApiResponse(description="Только для superuser.")},
+    ),
+    images_list=extend_schema(
+        tags=["Мероприятия / Изображения"],
+        summary="Список изображений мероприятия",
+        description="Возвращает preview_image_url и список изображений, загруженных для мероприятия.",
+        responses={
+            200: OpenApiResponse(response=EventImagesResponseSerializer, description="Список изображений и preview."),
+            404: OpenApiResponse(description="Мероприятие не найдено или скрыто."),
+        },
+    ),
+    export_xlsx=extend_schema(
+        tags=["Мероприятия / XLSX"],
+        summary="Экспорт мероприятий в XLSX",
+        description="Экспортирует текущий отфильтрованный список мероприятий в Excel. Фильтры и поиск такие же, как в списке.",
+        responses={
+            200: OpenApiResponse(
+                description="XLSX файл (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)."
+            )
+        },
+    ),
+    import_xlsx=extend_schema(
+        tags=["Мероприятия / XLSX"],
+        summary="Импорт мероприятий из XLSX",
+        description=(
+            "Доступно только суперпользователю. "
+            "Принимает multipart/form-data с файлом в поле file. "
+            "Если в файле есть некорректные строки, они вернутся в errors."
+        ),
+        request=FileUploadSerializer,
+        responses={
+            201: OpenApiResponse(description="Импорт завершён успешно."),
+            400: OpenApiResponse(description="Ошибки импорта (невалидные строки или файл не передан)."),
+            403: OpenApiResponse(description="Только для superuser."),
+        },
+        examples=[
+            OpenApiExample(
+                name="Пример частичного импорта с ошибками",
+                value={
+                    "message": "Created 1 events.",
+                    "errors": ["Row 2: End time must be after start time"],
+                },
+                response_only=True,
+                status_codes=["400"],
+            )
+        ],
+    ),
+)
 class EventViewSet(ModelViewSet):
     serializer_class = EventSerializer
     permission_classes = [IsSuperUserOrReadOnly]
@@ -53,6 +231,12 @@ class EventViewSet(ModelViewSet):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
     @images.mapping.get
+    @extend_schema(
+        tags=["Мероприятия / Изображения"],
+        summary="Список изображений мероприятия",
+        description="Возвращает preview_image_url и список загруженных изображений мероприятия.",
+        responses={200: EventImagesResponseSerializer, 404: OpenApiResponse(description="Не найдено.")},
+    )
     def images_list(self, request, pk=None):
         event = self.get_object()
         qs = event.images.all().order_by("-created_at")
@@ -62,6 +246,29 @@ class EventViewSet(ModelViewSet):
         return Response(data)
 
     @images.mapping.post
+    @extend_schema(
+        tags=["Мероприятия / Изображения"],
+        summary="Загрузка изображений мероприятия",
+        description=(
+            "Доступно только суперпользователю. "
+            "Принимает multipart/form-data с ключом images (можно несколько файлов). "
+            "Превью генерируется один раз при первой загрузке и далее не перезаписывается."
+        ),
+        request=EventImagesUploadSerializer,
+        responses={
+            201: OpenApiResponse(response=EventImageSerializer(many=True), description="Изображения загружены."),
+            400: OpenApiResponse(description="Файлы не переданы или неверный формат."),
+            403: OpenApiResponse(description="Только для superuser."),
+        },
+        examples=[
+            OpenApiExample(
+                name="Пример ошибки (нет файлов)",
+                value={"images": ["Upload at least one file using form-data key 'images'."]},
+                response_only=True,
+                status_codes=["400"],
+            )
+        ],
+    )
     def images_upload(self, request, pk=None):
         event = self.get_object()
 
