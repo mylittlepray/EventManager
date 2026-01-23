@@ -1,4 +1,4 @@
-# Create your models here.
+# events/models.py
 from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -16,27 +16,29 @@ class EventStatus(models.TextChoices):
 
 
 class Event(models.Model):
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-
-    publish_at = models.DateTimeField(null=True, blank=True)
-    start_at = models.DateTimeField()
-    end_at = models.DateTimeField()
+    title = models.CharField(max_length=255, verbose_name="Название")
+    description = models.TextField(blank=True, verbose_name="Описание")
+    start_at = models.DateTimeField(verbose_name="Начало")
+    end_at = models.DateTimeField(verbose_name="Окончание")
+    publish_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата публикации")
 
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="events",
+        verbose_name="Автор",
     )
     venue = models.ForeignKey(
         Venue,
         on_delete=models.PROTECT,
         related_name="events",
+        verbose_name="Место проведения",
     )
 
     rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(25)],
         default=0,
+        verbose_name="Рейтинг",
     )
 
     status = models.CharField(
@@ -44,6 +46,7 @@ class Event(models.Model):
         choices=EventStatus.choices,
         default=EventStatus.DRAFT,
         db_index=True,
+        verbose_name="Статус",
     )
 
     # Превью-изображение (позже сделаем автогенерацию 200px)
@@ -52,6 +55,7 @@ class Event(models.Model):
         null=True,
         blank=True,
         editable=False,
+        verbose_name="Обложка",
     )
 
     weather = models.OneToOneField(
@@ -59,13 +63,17 @@ class Event(models.Model):
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
-        related_name='event'
+        related_name='event',
+        verbose_name="Погода",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "Мероприятие"
+        verbose_name_plural = "Мероприятия"
+
         constraints = [
             models.CheckConstraint(
                 condition=Q(rating__gte=0) & Q(rating__lte=25),
@@ -87,8 +95,12 @@ class EventImage(models.Model):
         on_delete=models.CASCADE,
         related_name="images",
     )
-    image = models.ImageField(upload_to="events/images/")
-    created_at = models.DateTimeField(auto_now_add=True)
+    image = models.ImageField(upload_to='events/images/', verbose_name="Файл")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата загрузки")
+
+    class Meta:
+        verbose_name = "Фотография"
+        verbose_name_plural = "Галерея"
 
     def __str__(self):
         return f"Image for event_id={self.event_id}"
