@@ -14,23 +14,24 @@ from pathlib import Path
 
 from celery.schedules import crontab
 
-from dotenv import load_dotenv
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+except ImportError:
+    pass    
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-dev-secret")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "1") in ["1", "True", "true", "on"]
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 # Application definition
 
@@ -111,16 +112,18 @@ DATABASES = {
     }
 }
 
-GDAL_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\gdal312.dll"
-GEOS_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\geos_c.dll"
+if os.name == 'nt':
+    # Для Windows
+    GDAL_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\gdal312.dll"
+    GEOS_LIBRARY_PATH = r"C:\Users\Alex\AppData\Local\Programs\OSGeo4W\bin\geos_c.dll"
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Celery
-CELERY_BROKER_URL = "redis://localhost:6379/0"
-CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
-CELERY_TIMEZONE = "UTC"
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "UTC")
 
 CELERY_BEAT_SCHEDULE = {
     "update-weather-every-hour": {
