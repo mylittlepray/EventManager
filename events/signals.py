@@ -3,9 +3,10 @@ from django.dispatch import receiver
 from .models import EventImage, Event, EventStatus, EmailNotificationConfig
 from django.contrib.auth.models import User
 
-from .services import make_preview 
+from events.services import make_preview 
 
-from .tasks import send_event_notification_task
+from events.tasks import send_event_notification_task
+from weather.tasks import set_event_weather_forecast_task
 
 @receiver(post_save, sender=EventImage)
 def generate_preview_on_save(sender, instance, created, **kwargs):
@@ -36,6 +37,9 @@ def update_preview_on_delete(sender, instance, **kwargs):
 @receiver(post_save, sender=Event)
 def event_published_notification(sender, instance, created, **kwargs):
     if instance.status == EventStatus.PUBLISHED:
+        if not instance.weather:
+            set_event_weather_forecast_task.delay(instance.id)
+
         config = EmailNotificationConfig.objects.first()
         if not config:
             return

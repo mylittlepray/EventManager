@@ -1,7 +1,8 @@
 from celery import shared_task
+from events.models import Event
 from venues.models import Venue
 from weather.models import WeatherSnapshot
-from weather.services import fetch_weather_for_venue
+from weather.services import fetch_weather_for_venue, get_forecast_for_time
 
 @shared_task
 def update_weather_snapshots():
@@ -18,3 +19,38 @@ def update_weather_snapshots():
         else:
             results.append(f"Failed {venue.name}")
     return results
+
+@shared_task
+def set_event_weather_forecast_task(event_id):
+    try:
+        event = Event.objects.get(id=event_id)
+        
+        if not event.venue or not event.venue.location:
+             return "No venue or location"
+
+        try:
+            lat, lon = event.venue.location.split(',') 
+        except:
+            return "Invalid location format"
+
+        weather_data = get_forecast_for_time(
+            float(lat), 
+            float(lon), 
+            event.start_at
+        )
+
+        if not weather_data:
+            return "Weather forecast not available (too far in future?)"
+
+        snapshot = WeatherSnapshot.objects.create(
+            venue=event.venue,
+            **weather_data
+        )
+
+        event.weather = snapshot
+        event.save(update_fields=['weather'])
+        
+        return f"Weather saved for event {event.title}"
+
+    except Event.DoesNotExist:
+        return "Event not found"

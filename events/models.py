@@ -5,7 +5,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import Q, F
 
 from venues.models import Venue
-
+from weather.models import WeatherSnapshot
 
 class EventStatus(models.TextChoices):
     DRAFT = "DRAFT", "Draft"
@@ -52,6 +52,14 @@ class Event(models.Model):
         null=True,
         blank=True,
         editable=False,
+    )
+
+    weather = models.OneToOneField(
+        WeatherSnapshot, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='event'
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -102,7 +110,6 @@ class EmailNotificationConfig(models.Model):
         help_text="Используйте {title}, {date}, {venue}, {description} для подстановки."
     )
 
-    # Текстовое поле для ручного ввода email'ов, плюс галочка "Отправлять всем пользователям".
     recipients_list = models.TextField(
         blank=True, 
         default="",
