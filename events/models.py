@@ -84,3 +84,44 @@ class EventImage(models.Model):
 
     def __str__(self):
         return f"Image for event_id={self.event_id}"
+
+class EmailNotificationConfig(models.Model):
+    """
+    Настройки для автоматической рассылки при публикации мероприятия.
+    Предполагается, что существует только одна запись (Singleton).
+    """
+    subject_template = models.CharField(
+        max_length=255, 
+        default="Новое мероприятие: {title}",
+        verbose_name="Шаблон темы письма",
+        help_text="Используйте {title}, {date}, {venue} для подстановки значений."
+    )
+    message_template = models.TextField(
+        default="Приглашаем вас на {title}!\nМесто: {venue}\nДата: {date}\nОписание: {description}",
+        verbose_name="Шаблон текста письма",
+        help_text="Используйте {title}, {date}, {venue}, {description} для подстановки."
+    )
+
+    # Текстовое поле для ручного ввода email'ов, плюс галочка "Отправлять всем пользователям".
+    recipients_list = models.TextField(
+        blank=True, 
+        default="",
+        verbose_name="Список адресатов (вручную)",
+        help_text="Введите email адреса через запятую."
+    )
+    send_to_all_users = models.BooleanField(
+        default=True,
+        verbose_name="Отправлять всем зарегистрированным пользователям"
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.pk and EmailNotificationConfig.objects.exists():
+            pass 
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "Настройки Email уведомлений"
+
+    class Meta:
+        verbose_name = "Настройки рассылки"
+        verbose_name_plural = "Настройки рассылки"

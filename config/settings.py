@@ -132,7 +132,11 @@ CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "UTC")
 CELERY_BEAT_SCHEDULE = {
     "update-weather-every-hour": {
         "task": "weather.tasks.update_weather_snapshots",
-        "schedule": crontab(minute=1),  # Каждый час в 00 минут
+        "schedule": crontab(hour="*"),  # Каждый час
+    },
+    "publish-scheduled-events-every-minute": {
+        "task": "events.tasks.publish_scheduled_events_task",
+        "schedule": crontab(minute="*/1"), # Каждую минуту
     },
 }
 
@@ -154,11 +158,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru-RU'
 
 TIME_ZONE = 'UTC'
 
@@ -166,6 +169,21 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Email settings
+# В продакшене тут будет 'django.core.mail.backends.smtp.EmailBackend'
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    EMAIL_HOST_USER = 'info@eventmanager.com'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+
+    EMAIL_HOST = os.getenv("MAILERSEND_HOST")
+    EMAIL_HOST_USER = os.getenv("MAILERSEND_USER")
+    EMAIL_HOST_PASSWORD = os.getenv("MAILERSEND_KEY")
+    DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
