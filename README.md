@@ -190,6 +190,7 @@ DEFAULT_FROM_EMAIL=[email protected]
 *   **ReDoc:** [http://localhost:8000/api/schema/](http://localhost:8000/api/schema/) — Альтернативная схема API.
 *   **Админ-панель:** [http://localhost:8000/admin/](http://localhost:8000/admin/)
 *   **Frontend (Demo):** [http://localhost:8000/](http://localhost:8000/) — Простой фронт
+*   **Схема БД:** В файле Scheme for EventManager.png в корне проекта
 
 ***
 
