@@ -1,3 +1,4 @@
+# events/signals.py
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import EventImage, Event, EventStatus, EmailNotificationConfig
@@ -35,45 +36,57 @@ def update_preview_on_delete(sender, instance, **kwargs):
     pass 
 
 @receiver(post_save, sender=Event)
-def event_published_notification(sender, instance, created, **kwargs):
-    if instance.status == EventStatus.PUBLISHED:
-        if not instance.weather:
-            set_event_weather_forecast_task.delay(instance.id)
-
-        config = EmailNotificationConfig.objects.first()
-        if not config:
-            return
-
-        recipients = set()
+def event_published_notification(sender, instance, created, update_fields=None, **kwargs):
+    # Если статус не PUBLISHED, нам тут делать нечего
+    if instance.status != EventStatus.PUBLISHED:
+        return
         
-        if config.recipients_list:
-            emails = [e.strip() for e in config.recipients_list.split(",") if e.strip()]
-            recipients.update(emails)
+    # 2. ПРОВЕРКА НА ИЗМЕНЕНИЕ СТАТУСА (Anti-Spam защита)
+    # Если это не создание объекта (created=False)
+    # И при этом update_fields передан
+    # И в update_fields НЕТ поля 'status'
+    # ЗНАЧИТ: Мы обновляем что-то другое (погоду, картинку), но не статус.
+    # Письмо слать НЕ НАДО.
+    if not created and update_fields and 'status' not in update_fields:
+        return
+
+    if not instance.weather:
+        set_event_weather_forecast_task.delay(instance.id)
+
+    config = EmailNotificationConfig.objects.first()
+    if not config:
+        return
+
+    recipients = set()
+        
+    if config.recipients_list:
+        emails = [e.strip() for e in config.recipients_list.split(",") if e.strip()]
+        recipients.update(emails)
             
-        if config.send_to_all_users:
-            users_emails = User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True)
-            recipients.update(users_emails)
-            
-        if not recipients:
-            return
+    if config.send_to_all_users:
+        users_emails = User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True)
+        recipients.update(users_emails)
 
-        context = {
-            "title": instance.title,
-            "venue": instance.venue.name if instance.venue else "Не указано",
-            "date": str(instance.start_at),
-            "description": instance.description or ""
-        }
+    if not recipients:
+        return
 
-        try:
-            subject = config.subject_template.format(**context)
-            message = config.message_template.format(**context)
-        except KeyError:
-            subject = f"Новое мероприятие: {instance.title}"
-            message = f"Приглашаем на {instance.title} ({instance.start_at})"
+    context = {
+        "title": instance.title,
+        "venue": instance.venue.name if instance.venue else "Не указано",
+        "date": str(instance.start_at),
+        "description": instance.description or ""
+    }
 
-        send_event_notification_task.delay(
-            event_id=instance.id,
-            subject=subject,
-            message=message,
-            recipient_list=list(recipients)
-        )
+    try:
+        subject = config.subject_template.format(**context)
+        message = config.message_template.format(**context)
+    except KeyError:
+        subject = f"Новое мероприятие: {instance.title}"
+        message = f"Приглашаем на {instance.title} ({instance.start_at})"
+
+    send_event_notification_task.delay(
+        event_id=instance.id,
+        subject=subject,
+        message=message,
+        recipient_list=list(recipients)
+    )
