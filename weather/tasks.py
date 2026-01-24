@@ -4,6 +4,8 @@ from venues.models import Venue
 from weather.models import WeatherSnapshot
 from weather.services import fetch_weather_for_venue, get_forecast_for_time
 
+from venues.services import get_venue_coordinates
+
 @shared_task
 def update_weather_snapshots():
     """
@@ -28,14 +30,7 @@ def set_event_weather_forecast_task(event_id):
         if not event.venue or not event.venue.location:
              return "No venue or location"
 
-        try:
-            lat = event.venue.location.y
-            lon = event.venue.location.x
-        except AttributeError:
-            try:
-                lat, lon = event.venue.location.split(',')
-            except:
-                return "Invalid location format"
+        lat, lon = get_venue_coordinates(event.venue)
 
         weather_data = get_forecast_for_time(
             float(lat), 

@@ -1,5 +1,5 @@
 # events/signals.py
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from .models import EventImage, Event, EventStatus, EmailNotificationConfig
 from django.contrib.auth.models import User
@@ -35,6 +35,34 @@ def update_preview_on_delete(sender, instance, **kwargs):
     """
     pass 
 
+@receiver(pre_save, sender=Event)
+def reset_weather_on_change(sender, instance, **kwargs):
+    """
+    Следит за изменением даты или места.
+    Если изменились - сбрасывает текущую погоду и помечает на обновление.
+    """
+    if not instance.pk:
+        instance._need_weather_update = True
+        return
+
+    try:
+        old_instance = Event.objects.get(pk=instance.pk)
+        
+        if old_instance.start_at != instance.start_at or old_instance.venue != instance.venue:
+            instance.weather = None 
+            instance._need_weather_update = True
+            
+    except Event.DoesNotExist:
+        instance._need_weather_update = True
+
+@receiver(post_save, sender=Event)
+def trigger_weather_update(sender, instance, created, **kwargs):
+    """
+    Запускает задачу обновления погоды, если был установлен флаг в pre_save.
+    """
+    if getattr(instance, '_need_weather_update', False):
+        set_event_weather_forecast_task.delay(instance.id)
+
 @receiver(post_save, sender=Event)
 def event_published_notification(sender, instance, created, update_fields=None, **kwargs):
     # Если статус не PUBLISHED, нам тут делать нечего
@@ -50,8 +78,7 @@ def event_published_notification(sender, instance, created, update_fields=None, 
     if not created and update_fields and 'status' not in update_fields:
         return
 
-    if not instance.weather:
-        set_event_weather_forecast_task.delay(instance.id)
+    set_event_weather_forecast_task.delay(instance.id)
 
     config = EmailNotificationConfig.objects.first()
     if not config:

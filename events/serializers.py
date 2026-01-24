@@ -31,8 +31,8 @@ class EventListSerializer(serializers.ModelSerializer):
 
 class EventDetailSerializer(serializers.ModelSerializer):
     venue = VenueSerializer(read_only=True)
-    weather = WeatherSnapshotSerializer(read_only=True)
-    images = EventImageSerializer(many=True, read_only=True)
+    # weather = WeatherSnapshotSerializer(read_only=True)
+    # images = EventImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Event
@@ -48,8 +48,8 @@ class EventDetailSerializer(serializers.ModelSerializer):
             "preview_image",
             "status",
             "author",
-            "weather",
-            "images",
+            # "weather",
+            # "images",
         ]
 
     def to_representation(self, instance):

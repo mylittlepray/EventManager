@@ -12,6 +12,8 @@ from .services import make_preview
 from .xlsx_services import export_events_to_xlsx, import_events_from_xlsx
 from .filters import EventFilter
 
+from venues.services import get_venue_coordinates
+
 from weather.serializers import WeatherSnapshotSerializer
 from weather.models import WeatherSnapshot
 from weather.services import get_forecast_for_time
@@ -204,8 +206,8 @@ class EventViewSet(ModelViewSet):
     def get_queryset(self):
         qs = Event.objects.select_related("venue", "author")
         
-        if self.action == 'retrieve':
-            qs = qs.prefetch_related("images", "weather")
+        # if self.action == 'retrieve':
+        #    qs = qs.prefetch_related("images", "weather")
 
         user = self.request.user
         if user.is_authenticated and user.is_superuser:
@@ -355,15 +357,7 @@ class EventViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        try:
-            lat = event.venue.location.y
-            lon = event.venue.location.x
-        except AttributeError:
-            # На случай, если вдруг там не Point, а что-то странное
-            return Response(
-                {"detail": "Некорректный тип данных координат."}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        lat, lon = get_venue_coordinates(event.venue)
 
         weather_data = get_forecast_for_time(
             float(lat), 

@@ -4,6 +4,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from venues.services import get_venue_coordinates
+
 def degrees_to_direction(degrees):
     """Преобразует градусы направления ветра в текстовые обозначения."""
     directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
@@ -19,14 +21,7 @@ def fetch_weather_for_venue(venue):
     Получает текущую погоду для venue через Open-Meteo API.
     Возвращает словарь с данными погоды или None при ошибке.
     """
-    try:
-        lat = venue.location.y
-        lon = venue.location.x
-    except AttributeError:
-        try:
-            lat, lon = venue.location.split(',')
-        except:
-            return "Invalid location format"
+    lat, lon = get_venue_coordinates(venue)
 
     url = (
         f"https://api.open-meteo.com/v1/forecast"
