@@ -4,9 +4,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 
-from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiResponse, OpenApiExample
 
-from core.permissions import IsSuperUser
+from core.permissions import IsSuperUserOrPublicReadIfAllowed
 from .models import Venue
 from .serializers import VenueSerializer
 
@@ -17,16 +17,16 @@ from weather.models import WeatherSnapshot
     list=extend_schema(
         tags=["Площадки"],
         summary="Список площадок",
-        description="Возвращает список площадок (мест проведения). Доступно только суперпользователю.",
+        description="Возвращает список площадок (мест проведения).",
         responses={
             200: OpenApiResponse(response=VenueSerializer(many=True), description="Список площадок."),
-            403: OpenApiResponse(description="Только для superuser."),
+            403: OpenApiResponse(description="Только для superuser (если публичный доступ отключен)."),
         },
     ),
     retrieve=extend_schema(
         tags=["Площадки"],
         summary="Детали площадки",
-        description="Возвращает одну площадку по её id. Доступно только суперпользователю.",
+        description="Возвращает одну площадку по её id.",
         responses={
             200: OpenApiResponse(response=VenueSerializer, description="Площадка."),
             403: OpenApiResponse(description="Только для superuser."),
@@ -36,7 +36,17 @@ from weather.models import WeatherSnapshot
     create=extend_schema(
         tags=["Площадки"],
         summary="Создать площадку",
-        description="Создаёт площадку. Доступно только суперпользователю.",
+        description="Создаёт площадку. Поле location принимает строку WKT 'POINT(lon lat)'.",
+        examples=[
+            OpenApiExample(
+                "Пример создания",
+                value={
+                    "name": "Центральный стадион",
+                    "location": "POINT(92.8526 56.0106)",
+                },
+                request_only=True
+            )
+        ],
         responses={
             201: OpenApiResponse(response=VenueSerializer, description="Площадка создана."),
             400: OpenApiResponse(description="Ошибка валидации."),
@@ -46,7 +56,17 @@ from weather.models import WeatherSnapshot
     update=extend_schema(
         tags=["Площадки"],
         summary="Обновить площадку",
-        description="Полное обновление площадки (PUT). Доступно только суперпользователю.",
+        description="Полное обновление площадки (PUT).",
+        examples=[
+            OpenApiExample(
+                "Пример обновления",
+                value={
+                    "name": "Новое название",
+                    "location": "POINT(30.0 60.0)",
+                },
+                request_only=True
+            )
+        ],
         responses={
             200: OpenApiResponse(response=VenueSerializer, description="Площадка обновлена."),
             400: OpenApiResponse(description="Ошибка валидации."),
@@ -57,7 +77,16 @@ from weather.models import WeatherSnapshot
     partial_update=extend_schema(
         tags=["Площадки"],
         summary="Частично обновить площадку",
-        description="Частичное обновление площадки (PATCH). Доступно только суперпользователю.",
+        description="Частичное обновление площадки (PATCH).",
+        examples=[
+            OpenApiExample(
+                "Пример частичного обновления",
+                value={
+                    "location": "POINT(93.0 56.5)"
+                },
+                request_only=True
+            )
+        ],
         responses={
             200: OpenApiResponse(response=VenueSerializer, description="Площадка обновлена."),
             400: OpenApiResponse(description="Ошибка валидации."),
@@ -68,7 +97,7 @@ from weather.models import WeatherSnapshot
     destroy=extend_schema(
         tags=["Площадки"],
         summary="Удалить площадку",
-        description="Удаляет площадку. Доступно только суперпользователю.",
+        description="Удаляет площадку.",
         responses={
             204: OpenApiResponse(description="Площадка удалена."),
             403: OpenApiResponse(description="Только для superuser."),
@@ -79,7 +108,7 @@ from weather.models import WeatherSnapshot
 class VenueViewSet(ModelViewSet):
     queryset = Venue.objects.all()
     serializer_class = VenueSerializer
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsSuperUserOrPublicReadIfAllowed]
 
     @extend_schema(
         tags=["Площадки / Погода"],

@@ -1,18 +1,34 @@
 # venues/serializers.py
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
-
+from drf_spectacular.utils import extend_schema_serializer, OpenApiExample
 from .models import Venue
 
+@extend_schema_serializer(
+    examples=[
+         OpenApiExample(
+            'Пример ответа',
+            value={
+                'id': 1,
+                'name': 'Arena',
+                'location': {'latitude': 55.0, 'longitude': 92.0}
+            },
+            response_only=True,
+        )
+    ]
+)
 class VenueSerializer(serializers.ModelSerializer):
-    location = serializers.SerializerMethodField() 
+    location = serializers.CharField(write_only=True)
 
     class Meta:
         model = Venue
         fields = ['id', 'name', 'location']
+        extra_kwargs = {'location': {'required': True}}
 
-    @extend_schema_field({'type': 'object', 'example': {'type': 'Point', 'coordinates': [92.8526, 56.0106]}})
-    def get_location(self, obj):
-        if obj.location:
-            return {"latitude": obj.location.y, "longitude": obj.location.x}
-        return None
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.location:
+            ret['location'] = {
+                "latitude": instance.location.y,
+                "longitude": instance.location.x
+            }
+        return ret

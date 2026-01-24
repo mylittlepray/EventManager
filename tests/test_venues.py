@@ -1,8 +1,11 @@
 # tests/test_venues.py
 import pytest
 from django.urls import reverse
+from django.test import override_settings
+
 from venues.models import Venue
 
+@override_settings(VENUES_PUBLIC_READ_ACCESS=False) 
 @pytest.mark.django_db
 def test_venue_list_permissions(api_client, venue_factory, user_factory):
     """
