@@ -3,7 +3,6 @@ version: '3.8'
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: event_db
     restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -21,7 +20,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: event_redis
     restart: always
     ports:
       - "6379:6379"
@@ -33,7 +31,6 @@ services:
 
   web:
     build: .
-    container_name: event_web
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
@@ -49,7 +46,6 @@ services:
 
   celery-worker:
     build: .
-    container_name: event_worker
     command: celery -A config worker --loglevel=info
     volumes:
       - .:/app
@@ -63,7 +59,6 @@ services:
 
   celery-beat:
     build: .
-    container_name: event_beat
     command: celery -A config beat --loglevel=info
     volumes:
       - .:/app

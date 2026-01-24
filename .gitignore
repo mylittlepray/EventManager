@@ -1,4 +1,5 @@
-media/
+media/events/images
+media/events/previews
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
