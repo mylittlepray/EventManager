@@ -37,17 +37,20 @@ def update_preview_on_delete(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=Event)
 def reset_weather_on_change(sender, instance, **kwargs):
-    """
-    Следит за изменением даты или места.
-    Если изменились - сбрасывает текущую погоду и помечает на обновление.
-    """
+    if instance.status != EventStatus.PUBLISHED:
+        return 
+
     if not instance.pk:
         instance._need_weather_update = True
         return
 
     try:
         old_instance = Event.objects.get(pk=instance.pk)
-        
+
+        if old_instance.status != EventStatus.PUBLISHED and instance.status == EventStatus.PUBLISHED:
+            instance._need_weather_update = True
+            return
+
         if old_instance.start_at != instance.start_at or old_instance.venue != instance.venue:
             instance.weather = None 
             instance._need_weather_update = True
@@ -77,8 +80,6 @@ def event_published_notification(sender, instance, created, update_fields=None, 
     # Письмо слать НЕ НАДО.
     if not created and update_fields and 'status' not in update_fields:
         return
-
-    set_event_weather_forecast_task.delay(instance.id)
 
     config = EmailNotificationConfig.objects.first()
     if not config:
