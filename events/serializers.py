@@ -30,8 +30,8 @@ class EventListSerializer(serializers.ModelSerializer):
 
 class EventDetailSerializer(serializers.ModelSerializer):
     venue = VenueSerializer(read_only=True)
-    weather = WeatherSnapshotSerializer(read_only=True) # Погода
-    images = EventImageSerializer(many=True, read_only=True) # Картинки
+    weather = WeatherSnapshotSerializer(read_only=True)
+    images = EventImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Event
@@ -45,10 +45,10 @@ class EventDetailSerializer(serializers.ModelSerializer):
             "venue", 
             "rating", 
             "preview_image",
-            "status",      # Добавим статус (админу полезно)
-            "author",      # Автора
-            "weather",     # <-- Добавлено
-            "images",      # <-- Добавлено
+            "status",
+            "author",
+            "weather",
+            "images",
         ]
 
     def to_representation(self, instance):
@@ -61,12 +61,8 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
         # Если пользователь НЕ суперюзер (или аноним)
         if not request or not request.user.is_superuser:
-            # Можно удалить лишние поля, которые видит только админ
-            # Например, если 'status' или 'author' не должны видеть обычные юзеры:
             if 'status' in rep: rep.pop('status')
             if 'author' in rep: rep.pop('author')
-            
-            # Weather и Images остаются, как ты и просил для "retrieve"
             
         return rep
 
@@ -75,6 +71,13 @@ class EventWriteSerializer(serializers.ModelSerializer):
         model = Event
         fields = "__all__"
         read_only_fields = ["author", "weather", "preview_image", "rating"] 
+        
+    def validate(self, data):
+        start = data.get('start_at')
+        end = data.get('end_at')
+        if start and end and end <= start:
+            raise serializers.ValidationError({"end_at": "Дата окончания должна быть позже начала."})
+        return data
 
 class EventImagesUploadSerializer(serializers.Serializer):
     images = serializers.ImageField(required=False)
