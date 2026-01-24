@@ -33,16 +33,36 @@ REST API сервис для управления мероприятиями, р
 
 Самый простой способ запустить проект со всеми зависимостями (БД, Redis, Worker). Миграции применяются автоматически при первом старте контейнера.
 
+### 0. Скачивание проекта
+```bash
+mkdir event_manager
+git init
+git remote add origin https://github.com/mylittlepray/EventManager.git
+git pull origin main
+```
+
 ### 1. Подготовка окружения
 Создайте файл `.env` в корне проекта (можно скопировать `.env.example`).
-**Ключевые настройки для Docker:**
+**Ключевые настройки:**
 ```ini
-POSTGRES_DB=event_db
+DJANGO_SECRET_KEY='your-django-key' # настройте секретный ключ Django после установки (см. далее)
+DEBUG=1 # Режим отладки 
+ALLOWED_HOSTS=localhost,127.0.0.1,web
+
+POSTGRES_DB=event_manager_db
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=db  # Имя сервиса в docker-compose
+POSTGRES_PASSWORD=my_strong_password
+POSTGRES_HOST=db # 127.0.0.1 для винды
 POSTGRES_PORT=5432
+
+CELERY_TIMEZONE=UTC
 CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+DEFAULT_FROM_EMAIL = 'noreply@yourdomain.com'
+MAILERSEND_HOST = 'connect.smtp.com'
+MAILERSEND_USER = 'your@mail.com'
+MAILERSEND_KEY = 'your_Key'
 ```
 
 ### 2. Запуск контейнеров
@@ -51,6 +71,27 @@ docker-compose up -d --build
 ```
 Эта команда соберет образы, запустит базу данных, Redis, веб-сервер и Celery воркеры.
 Миграции базы данных применяются автоматически при старте веб-контейнера.
+
+### 2.1. **Генерация надежного Secret Key**
+
+Для безопасности (особенно перед деплоем) нужно сгенерировать уникальный `DJANGO_SECRET_KEY`. Вы можете сделать это через запущенный контейнер:
+
+### 2.1.1. **Сгенерируйте ключ командой:**
+   ```bash
+   docker-compose exec web python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+   ```
+
+### 2.1.2. **Обновите `.env`:**
+   Скопируйте полученную строку и замените значение переменной в вашем файле `.env`:
+   ```ini
+   DJANGO_SECRET_KEY='вставьте-скопированный-ключ-сюда'
+   ```
+
+### 2.1.3. **Перезапустите контейнеры:**
+   Чтобы новый ключ применился, нужно пересоздать контейнеры:
+   ```bash
+   docker-compose up -d --build
+   ```
 
 ### 3. Создание суперпользователя
 Для доступа в админ-панель создайте администратора:
