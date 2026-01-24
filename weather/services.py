@@ -19,11 +19,14 @@ def fetch_weather_for_venue(venue):
     Получает текущую погоду для venue через Open-Meteo API.
     Возвращает словарь с данными погоды или None при ошибке.
     """
-    lat = venue.location.y
-    lon = venue.location.x
-
-    lat = venue.location.y
-    lon = venue.location.x
+    try:
+        lat = venue.location.y
+        lon = venue.location.x
+    except AttributeError:
+        try:
+            lat, lon = venue.location.split(',')
+        except:
+            return "Invalid location format"
 
     url = (
         f"https://api.open-meteo.com/v1/forecast"

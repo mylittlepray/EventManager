@@ -29,9 +29,13 @@ def set_event_weather_forecast_task(event_id):
              return "No venue or location"
 
         try:
-            lat, lon = event.venue.location.split(',') 
-        except:
-            return "Invalid location format"
+            lat = event.venue.location.y
+            lon = event.venue.location.x
+        except AttributeError:
+            try:
+                lat, lon = event.venue.location.split(',')
+            except:
+                return "Invalid location format"
 
         weather_data = get_forecast_for_time(
             float(lat), 
