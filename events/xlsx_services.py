@@ -1,11 +1,14 @@
 import openpyxl
+import zipfile
 
 from io import BytesIO 
-from openpyxl.writer.excel import save_workbook
+
+from datetime import datetime
 
 from django.http import HttpResponse
 from django.contrib.gis.geos import Point
 from django.db import transaction
+from django.utils.timezone import make_aware
 
 from venues.models import Venue
 from .models import Event, EventStatus
@@ -20,6 +23,31 @@ def parse_coordinates(coord_str):
     except (ValueError, AttributeError):
         return None
 
+def parse_excel_date(value):
+    """
+    Превращает значение из Excel (datetime или строку) в Aware Datetime (UTC).
+    """
+    if not value:
+        return None
+        
+    dt = value
+    
+    if isinstance(value, str):
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            try:
+                dt = datetime.strptime(value, "%Y-%m-%d")
+            except ValueError:
+                return None
+
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            return make_aware(dt)
+        return dt
+        
+    return None
+
 def export_events_to_xlsx(queryset):
     """
     Генерирует XLSX-файл из QuerySet событий.
@@ -29,7 +57,6 @@ def export_events_to_xlsx(queryset):
     ws = wb.active
     ws.title = "Events"
 
-    # Заголовки (согласно ТЗ)
     headers = [
         "Дата публикации", 
         "Дата начала", 
@@ -66,25 +93,23 @@ def import_events_from_xlsx(file_obj, user):
     Читает XLSX файл и создает события.
     Возвращает статистику (создано, ошибок).
     """
-    wb = openpyxl.load_workbook(file_obj, data_only=True)
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+    except (zipfile.BadZipFile, OSError):
+        return {"created": 0, "errors": ["Файл поврежден или не является корректным XLSX."]}
     ws = wb.active
     
     created_count = 0
     errors = []
 
-    # Начинаем со 2-й строки
     rows = ws.iter_rows(min_row=2, values_only=True)
     
     for i, row in enumerate(rows, start=2):
-        # ВАЖНО: atomic на каждую строку отдельно!
-        # Если эта строка упадет - откатится только она.
-        # Если пройдёт - сохранится сразу.
         try:
             with transaction.atomic():
-                if not row or not row[0]: # Пропускаем пустые
+                if not row or not row[0]:
                     continue
 
-                # ... (твой код распаковки row) ...
                 title = row[0]
                 description = row[1] or ""
                 publish_at = row[2] 
@@ -94,7 +119,10 @@ def import_events_from_xlsx(file_obj, user):
                 coords_str = str(row[6])
                 rating = row[7] or 0
                 
-                # Парсинг Venue
+                start_at = parse_excel_date(start_at)
+                end_at = parse_excel_date(end_at)
+                publish_at = parse_excel_date(publish_at)
+
                 point = parse_coordinates(coords_str)
                 if not point:
                     venue = Venue.objects.filter(name=venue_name).first()
@@ -106,7 +134,6 @@ def import_events_from_xlsx(file_obj, user):
                         defaults={"location": point}
                     )
 
-                # Создание Event
                 Event.objects.create(
                     title=title,
                     description=description,
@@ -121,8 +148,6 @@ def import_events_from_xlsx(file_obj, user):
                 created_count += 1
 
         except Exception as e:
-            # Ошибка в конкретной строке ловится тут, транзакция этой строки откатывается,
-            # но цикл идет дальше к следующей строке.
             errors.append(f"Row {i}: {str(e)}")
 
     return {"created": created_count, "errors": errors}
