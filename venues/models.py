@@ -8,6 +8,7 @@ class Venue(models.Model):
     class Meta:
         verbose_name = "Площадка"
         verbose_name_plural = "Площадки"
+        ordering = ["name"]
 
     def __str__(self):
         return self.name
