@@ -148,15 +148,6 @@ from drf_spectacular.types import OpenApiTypes
         description="Доступно только суперпользователю. Физически запись не удаляется, статус становится DELETED.",
         responses={204: OpenApiResponse(description="Помечено как DELETED."), 403: OpenApiResponse(description="Только для superuser.")},
     ),
-    images_list=extend_schema(
-        tags=["Мероприятия / Изображения"],
-        summary="Список изображений мероприятия",
-        description="Возвращает preview_image_url и список изображений, загруженных для мероприятия.",
-        responses={
-            200: OpenApiResponse(response=EventImagesResponseSerializer, description="Список изображений и preview."),
-            404: OpenApiResponse(description="Мероприятие не найдено или скрыто."),
-        },
-    ),
     export_xlsx=extend_schema(
         tags=["Мероприятия / XLSX"],
         summary="Экспорт мероприятий в XLSX",
@@ -345,6 +336,7 @@ class EventViewSet(ModelViewSet):
         return Response({"message": f"Successfully imported {result['created']} events."}, status=status.HTTP_201_CREATED)
     
     @extend_schema(
+        tags=["Мероприятия / Погода"],
         summary="Получить погоду для события",
         description="Возвращает сохраненный прогноз погоды. Если прогноза нет в БД, пытается получить его онлайн и сохранить.",
         responses={200: WeatherSnapshotSerializer, 404: OpenApiResponse(description="Прогноз недоступен")}

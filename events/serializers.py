@@ -1,7 +1,8 @@
 # events/serializers.py
 from rest_framework import serializers
-from .models import Event, EventImage
+from drf_spectacular.utils import extend_schema_field
 
+from .models import Event, EventImage
 from venues.serializers import VenueSerializer
 from weather.serializers import WeatherSnapshotSerializer
 
@@ -96,6 +97,7 @@ class EventImagesResponseSerializer(serializers.Serializer):
     preview_image_url = serializers.SerializerMethodField()
     images = EventImageSerializer(many=True)
 
+    @extend_schema_field(str)
     def get_preview_image_url(self, obj):
         request = self.context.get("request")
         event = obj["event"]

@@ -1,7 +1,7 @@
-from rest_framework.routers import DefaultRouter
-from .views import WeatherSnapshotViewSet
+# from rest_framework.routers import DefaultRouter
+# from .views import WeatherSnapshotViewSet
 
-router = DefaultRouter()
-router.register(r"", WeatherSnapshotViewSet, basename="weather")
+# router = DefaultRouter()
+# router.register(r"", WeatherSnapshotViewSet, basename="weather")
 
-urlpatterns = router.urls
+# urlpatterns = router.urls
